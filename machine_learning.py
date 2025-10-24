@@ -1,7 +1,7 @@
 import pandas as pd
 from rapidfuzz import fuzz
 
-# Step 1: Load the claims data
+# Load the claims data
 df = pd.read_excel("C:\\Users\\Pc\\Downloads\\training_data.xlsx")
 
 # Diagnosis–prescription pairs
@@ -99,12 +99,13 @@ df["Check_Result"] = df.apply(
 print("🔍 FULL VERIFICATION RESULTS:")
 print(df[["Diagnosis", "Prescription", "Check_Result"]])  # show all rows with results
 
-# Step 6: Summary counts
+# Summary counts
 print("\n " \
 "SUMMARY COUNTS:")
 print(df["Check_Result"].value_counts(dropna=False))
 
-# Step 7: Export to Excel
+# Export to Excel
 output_file = "claims_checked.xlsx"
 df.to_excel(output_file, index=False)
+
 print(f"\n File exported successfully as: {output_file}")
