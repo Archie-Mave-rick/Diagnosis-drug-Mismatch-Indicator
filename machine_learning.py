@@ -1,12 +1,24 @@
 import pandas as pd
+import json
 from rapidfuzz import fuzz
 
-# Load the claims data
+# Load the claims
 df = pd.read_excel("C:\\Users\\Pc\\Downloads\\training_data.xlsx")
 
-# Diagnosis–prescription pairs
+# Load the ICD-10 codes 
+with open("C:\\Users\\Pc\\Downloads\\icd10_codes.json", "r", encoding="utf-8") as f:
+    icd_data = json.load(f)
+
+# Convert ICD data into a DataFrame for easy lookup
+icd_df = pd.DataFrame(icd_data)
+icd_df.columns = ["ICD_Code", "ICD_Description"]  # in case columns aren't named
+
+# Create a dictionary for quick lookup by description keyword
+icd_lookup = {row["ICD_Description"].lower(): row["ICD_Code"] for _, row in icd_df.iterrows()}
+
+# === STEP 3: Diagnosis–prescription pairs ===
 valid_pairs = {
-    "Malaria": ["Artemether-Lumefantrine", "Artesunate-Amodiaquine", "Dihydroartemisinin-Piperaquine", "IV Artesunate", "Quinine", "Paracetamol"],
+ "Malaria": ["Artemether-Lumefantrine", "Artesunate-Amodiaquine", "Dihydroartemisinin-Piperaquine", "IV Artesunate", "Quinine", "Paracetamol"],
     "Typhoid Fever": ["Azithromycin", "Ceftriaxone", "Ciprofloxacin", "Paracetamol"],
     "Cholera": ["Oral Rehydration Solution", "Azithromycin", "Doxycycline"],
     "Diarrhea": ["Oral Rehydration Solution", "Zinc", "Ciprofloxacin", "Azithromycin"],
@@ -74,9 +86,28 @@ valid_pairs = {
     "Post-Traumatic Stress Disorder": ["Fluoxetine"],
 }
 
-# Checking matches
+# Define helper functions 
+
+def get_icd_info(diagnosis):
+    """Get ICD code and description from lookup"""
+    diagnosis_lower = diagnosis.lower()
+    best_match = None
+    best_score = 0
+    best_code = "N/A"
+    best_description = "N/A"
+    for desc, code in icd_lookup.items():
+        score = fuzz.partial_ratio(diagnosis_lower, desc)
+        if score > best_score:
+            best_score = score
+            best_code = code
+            best_description = desc
+    if best_score > 80:
+        return best_code, best_description
+    return best_code, best_description
+
+
 def check_match(diagnosis, prescription):
-    # Handle missing or empty fields
+    """Check if diagnosis and prescription match"""
     if pd.isna(diagnosis) or pd.isna(prescription) or diagnosis.strip() == "" or prescription.strip() == "":
         return "Empty Cell"
 
@@ -90,22 +121,17 @@ def check_match(diagnosis, prescription):
             return "Match✅"
     return "Mismatch❌"
 
-# Apply to claim
-df["Check_Result"] = df.apply(
-    lambda x: check_match(x["Diagnosis"], x["Prescription"]), axis=1
-)
+# Apply logic
+df["ICD_Code"], df["ICD_Description"] = zip(*df["Diagnosis"].map(get_icd_info))
+df["Check_Result"] = df.apply(lambda x: check_match(x["Diagnosis"], x["Prescription"]), axis=1)
 
-# Exporting results
+# Display and export 
 print("🔍 FULL VERIFICATION RESULTS:")
-print(df[["Diagnosis", "Prescription", "Check_Result"]])  # show all rows with results
+print(df[["Diagnosis", "ICD_Code", "ICD_Description", "Prescription", "Check_Result"]])
 
-# Summary counts
-print("\n " \
-"SUMMARY COUNTS:")
+print("\n SUMMARY COUNTS:")
 print(df["Check_Result"].value_counts(dropna=False))
 
-# Export to Excel
-output_file = "claims_checked.xlsx"
+output_file = "claims_checked_with_icd.xlsx"
 df.to_excel(output_file, index=False)
-
-print(f"\n File exported successfully as: {output_file}")
+print(f"\n✅ File exported successfully as: {output_file}")
